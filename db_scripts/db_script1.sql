@@ -227,7 +227,7 @@ BEGIN
     );
     RETURN NEW;
 END;
-$$ LANGUAGE plVpgsql;
+$$ LANGUAGE plpgsql;
 
 -- Function to log ticket status changes
 CREATE OR REPLACE FUNCTION "MARM".log_ticket_status_change_activity()
