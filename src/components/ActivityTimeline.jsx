@@ -97,7 +97,6 @@ const ActivityTimeline = ({ userId, refreshFlag, autoRefresh = false, rowsToShow
         );
 
       case "TICKETSTATUSCHANGED":
-      case "TICKETSTATUSCHANGE":
         const newStatus = details.newStatus || details.new_status;
         const title = details.title || `Ticket #${details.title || details.title}`;
 

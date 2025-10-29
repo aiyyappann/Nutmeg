@@ -26,10 +26,11 @@ const transformInteractionFromDb = (dbInteraction) => {
 router.get('/', async (req, res) => {
     const { page = 1, limit = 10, customerId } = req.query;
     try {
+        // *** CHANGED: Added "MARM" schema ***
         let query = `
             SELECT i.*, c.first_name, c.last_name, c.company, COUNT(*) OVER() AS total_count
-            FROM interactions i
-            JOIN customers c ON i.customer_id = c.id
+            FROM "MARM".interactions i
+            JOIN "MARM".customers c ON i.customer_id = c.id
         `;
         const queryParams = [];
         if (customerId) {
@@ -59,11 +60,44 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
     const { customerId, type, channel, subject, notes, duration, outcome, nextAction } = req.body;
     try {
+        // *** CHANGED: Added "MARM" schema ***
         const result = await pool.query(
-            'INSERT INTO interactions (customer_id, type, channel, subject, notes, duration, outcome, next_action) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+            'INSERT INTO "MARM".interactions (customer_id, type, channel, subject, notes, duration, outcome, next_action) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
             [customerId, type, channel, subject, notes, duration, outcome, nextAction]
         );
-        res.status(201).json(result.rows[0]);
+
+        const newInteraction = result.rows[0];
+
+        // *** ADDED: Replaces log_new_interaction_activity trigger ***
+        try {
+            // Get customer name for logging
+            const customerRes = await pool.query(
+                'SELECT first_name, last_name FROM "MARM".customers WHERE id = $1',
+                [newInteraction.customer_id]
+            );
+            
+            let customer_name_var = 'Unknown Customer';
+            if (customerRes.rows.length > 0) {
+                customer_name_var = customerRes.rows[0].first_name + ' ' + customerRes.rows[0].last_name;
+            }
+
+            const targetName = 'Interaction: ' + newInteraction.subject;
+            const details = {
+                interaction_id: newInteraction.id,
+                subject: newInteraction.subject,
+                customer_name: customer_name_var
+            };
+
+            await pool.query(
+                'INSERT INTO "MARM".recent_activities (action, user_name, target, details, customer_id, created_at) VALUES ($1, $2, $3, $4, $5, NOW())',
+                ['created', 'NEWINTERACTION', targetName, details, newInteraction.customer_id]
+            );
+        } catch (logErr) {
+            console.error('Failed to log new interaction activity:', logErr);
+        }
+        // *** END ADDED SECTION ***
+
+        res.status(201).json(newInteraction); // Returns the raw interaction row as per original code
     } catch (err) {
         console.error('Interaction creation error:', err);
         res.status(500).json({ message: 'Server Error' });
@@ -75,8 +109,9 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { customerId, type, channel, subject, notes, duration, outcome, nextAction } = req.body;
     try {
+        // *** CHANGED: Added "MARM" schema ***
         const result = await pool.query(
-            'UPDATE interactions SET customer_id = $1, type = $2, channel = $3, subject = $4, notes = $5, duration = $6, outcome = $7, next_action = $8, updated_at = NOW() WHERE id = $9 RETURNING *',
+            'UPDATE "MARM".interactions SET customer_id = $1, type = $2, channel = $3, subject = $4, notes = $5, duration = $6, outcome = $7, next_action = $8, updated_at = NOW() WHERE id = $9 RETURNING *',
             [customerId, type, channel, subject, notes, duration, outcome, nextAction, id]
         );
         if (result.rows.length === 0) {
@@ -93,7 +128,8 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await pool.query('DELETE FROM interactions WHERE id = $1 RETURNING *', [id]);
+        // *** CHANGED: Added "MARM" schema ***
+       const result = await pool.query('DELETE FROM "MARM".interactions WHERE id = $1 RETURNING *', [id]);
         if (result.rowCount === 0) {
             return res.status(404).json({ message: 'Interaction not found' });
         }
@@ -106,5 +142,3 @@ router.delete('/:id', async (req, res) => {
 
 
 export default router;
-
-

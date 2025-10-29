@@ -1,4 +1,3 @@
-// export default router;
 import express from 'express';
 import pool from '../db.js';
 
@@ -29,7 +28,8 @@ const transformCustomerFromDb = (dbCustomer) => {
 router.get('/', async (req, res) => {
     const { page = 1, limit = 10, search = '', status, industry } = req.query;
     try {
-        let query = 'SELECT *, COUNT(*) OVER() AS total_count FROM customers';
+        // *** CHANGED: Added "MARM" schema ***
+        let query = 'SELECT *, COUNT(*) OVER() AS total_count FROM "MARM".customers';
         const queryParams = [];
         let whereClauses = [];
         let paramIndex = 1;
@@ -78,7 +78,8 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
+        // *** CHANGED: Added "MARM" schema ***
+        const result = await pool.query('SELECT * FROM "MARM".customers WHERE id = $1', [id]);
         if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Customer not found' });
         }
@@ -93,11 +94,35 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
     const { firstName, lastName, email, phone, company, industry, status, value, address, tags } = req.body;
     try {
+        // *** CHANGED: Added "MARM" schema ***
         const result = await pool.query(
-            'INSERT INTO customers (first_name, last_name, email, phone, company, industry, status, value, address, tags, last_contact) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) RETURNING *',
+            'INSERT INTO "MARM".customers (first_name, last_name, email, phone, company, industry, status, value, address, tags, last_contact) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) RETURNING *',
             [firstName, lastName, email, phone, company, industry, status || 'Prospect', value || 0, address, tags || []]
         );
-        res.status(201).json(transformCustomerFromDb(result.rows[0]));
+
+        const newCustomer = result.rows[0];
+
+        // *** ADDED: Replaces log_new_customer_activity trigger ***
+        try {
+            const targetName = 'Customer: ' + newCustomer.first_name + ' ' + newCustomer.last_name;
+            const details = {
+                customer_id: newCustomer.id,
+                email: newCustomer.email,
+                company: newCustomer.company
+            };
+
+            await pool.query(
+                'INSERT INTO "MARM".recent_activities (action, user_name, target, details, customer_id, created_at) VALUES ($1, $2, $3, $4, $5, NOW())',
+                ['created', 'NEWCUSTOMER', targetName, details, newCustomer.id]
+            );
+        } catch (logErr) {
+            // If logging fails, just log the error to the console
+            // but don't fail the main customer creation request.
+            console.error('Failed to log new customer activity:', logErr);
+        }
+        // *** END ADDED SECTION ***
+
+        res.status(201).json(transformCustomerFromDb(newCustomer));
     } catch (err) {
         console.error('Customer creation error:', err);
         res.status(500).json({ message: 'Server Error' });
@@ -109,11 +134,12 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { firstName, lastName, email, phone, company, industry, status, value, address, tags, lastContact } = req.body;
     try {
+        // *** CHANGED: Added "MARM" schema ***
         const result = await pool.query(
-            'UPDATE customers SET first_name = $1, last_name = $2, email = $3, phone = $4, company = $5, industry = $6, status = $7, value = $8, address = $9, tags = $10, last_contact = $11, updated_at = NOW() WHERE id = $12 RETURNING *',
+            'UPDATE "MARM".customers SET first_name = $1, last_name = $2, email = $3, phone = $4, company = $5, industry = $6, status = $7, value = $8, address = $9, tags = $10, last_contact = $11, updated_at = NOW() WHERE id = $12 RETURNING *',
             [firstName, lastName, email, phone, company, industry, status, value, address, tags, lastContact, id]
         );
-        if (result.rows.length === 0) {
+          if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Customer not found' });
         }
         res.json(transformCustomerFromDb(result.rows[0]));
@@ -127,7 +153,8 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await pool.query('DELETE FROM customers WHERE id = $1', [id]);
+        // *** CHANGED: Added "MARM" schema ***
+        const result = await pool.query('DELETE FROM "MARM".customers WHERE id = $1', [id]);
         if (result.rowCount === 0) {
             return res.status(404).json({ message: 'Customer not found' });
         }
@@ -139,5 +166,3 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router;
-
-

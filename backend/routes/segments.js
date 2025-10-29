@@ -58,7 +58,8 @@ const buildWhereClause = (rules) => {
 // GET all segments with dynamic customer counts
 router.get('/', async (req, res) => {
     try {
-        const segmentsResult = await pool.query('SELECT * FROM customer_segments ORDER BY created_at DESC');
+        // *** CHANGED: Added "MARM" schema ***
+        const segmentsResult = await pool.query('SELECT * FROM "MARM".customer_segments ORDER BY created_at DESC');
         const segments = segmentsResult.rows;
 
         // For each segment, dynamically calculate the number of customers that match its rules
@@ -72,7 +73,8 @@ router.get('/', async (req, res) => {
             }
 
             // Query the customers table to get the real count
-            const countQuery = `SELECT COUNT(*) FROM customers ${clause}`;
+            // *** CHANGED: Added "MARM" schema ***
+            const countQuery = `SELECT COUNT(*) FROM "MARM".customers ${clause}`;
             const countResult = await pool.query(countQuery, params);
             
             return {
@@ -95,8 +97,9 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
     const { name, description, criteria } = req.body;
     try {
+        // *** CHANGED: Added "MARM" schema ***
         const result = await pool.query(
-            'INSERT INTO customer_segments (name, description, criteria) VALUES ($1, $2, $3) RETURNING *',
+            'INSERT INTO "MARM".customer_segments (name, description, criteria) VALUES ($1, $2, $3) RETURNING *',
             [name, description, criteria]
         );
         const newSegment = result.rows[0];
@@ -106,23 +109,25 @@ router.post('/', async (req, res) => {
         const { clause, params } = buildWhereClause(rules);
         let count = 0;
         if (clause) {
-             const countResult = await pool.query(`SELECT COUNT(*) FROM customers ${clause}`, params);
-             count = parseInt(countResult.rows[0].count, 10);
+            // *** CHANGED: Added "MARM" schema ***
+             const countResult = await pool.query(`SELECT COUNT(*) FROM "MARM".customers ${clause}`, params);
+             count = parseInt(countResult.rows[0].count, 10);
         }
 
         res.status(201).json({ ...newSegment, rules, count });
     } catch (err) {
         console.error('Segment creation error:', err);
         res.status(500).json({ message: 'Server Error' });
-    }
+  }
 });
 
 // DELETE a segment
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        await pool.query('DELETE FROM customer_segments WHERE id = $1', [id]);
-        res.json({ success: true });
+        // *** CHANGED: Added "MARM" schema ***
+        await pool.query('DELETE FROM "MARM".customer_segments WHERE id = $1', [id]);
+     res.json({ success: true });
     } catch (err) {
         console.error('Segment deletion error:', err);
         res.status(500).json({ message: 'Server Error' });
@@ -130,4 +135,3 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router;
-
