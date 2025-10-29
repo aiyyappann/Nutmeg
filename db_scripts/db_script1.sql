@@ -156,6 +156,173 @@ CREATE INDEX "idx_support_tickets_priority" ON "MARM"."support_tickets"("priorit
 CREATE INDEX "idx_ticket_responses_ticket_id" ON "MARM"."ticket_responses"("ticket_id");
 CREATE INDEX "idx_recent_activities_created_at" ON "MARM".recent_activities(created_at DESC);
 
+-- --------------------------------------------------------------------
+--  Phase 5: Functions
+--  Define reusable functions for triggers within MARM schema.
+-- --------------------------------------------------------------------
+
+-- Function to update 'updated_at' timestamps
+CREATE OR REPLACE FUNCTION "MARM".update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to log new customers
+CREATE OR REPLACE FUNCTION "MARM".log_new_customer_activity()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO "MARM".recent_activities (action, user_name, target, details, customer_id, created_at)
+    VALUES (
+        'created',
+        'Trigger',
+        'Customer: ' || NEW.first_name || ' ' || NEW.last_name,
+        jsonb_build_object(
+            'customer_id', NEW.id,
+            'email', NEW.email,
+            'company', NEW.company
+        ),
+        NEW.id,
+        NOW()
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to log new interactions
+CREATE OR REPLACE FUNCTION "MARM".log_new_interaction_activity()
+RETURNS TRIGGER AS $$
+DECLARE
+    customer_name_var TEXT;
+BEGIN
+    SELECT first_name || ' ' || last_name INTO customer_name_var FROM "MARM".customers WHERE id = NEW.customer_id;
+    INSERT INTO "MARM".recent_activities (action, user_name, target, details, customer_id, created_at)
+    VALUES (
+        'created',
+        'Trigger',
+        'Interaction: ' || NEW.subject,
+        jsonb_build_object(
+            'interaction_id', NEW.id,
+            'subject', NEW.subject,
+            'customer_name', customer_name_var
+        ),
+        NEW.customer_id,
+        NOW()
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to log ticket status changes
+CREATE OR REPLACE FUNCTION "MARM".log_ticket_status_change_activity()
+RETURNS TRIGGER AS $$
+DECLARE
+    customer_name_var TEXT;
+BEGIN
+    -- Only log if the status has actually changed
+    IF OLD.status IS DISTINCT FROM NEW.status THEN
+        SELECT first_name || ' ' || last_name INTO customer_name_var FROM "MARM".customers WHERE id = NEW.customer_id;
+        INSERT INTO "MARM".recent_activities (action, user_name, target, details, customer_id, created_at)
+        VALUES (
+            'status_changed',
+            'Trigger',
+            'Ticket: ' || NEW.title,
+            jsonb_build_object(
+                'ticket_id', NEW.id,
+                'ticket_number', NEW.ticket_number,
+                'old_status', OLD.status,
+                'new_status', NEW.status,
+                'customer_name', customer_name_var
+            ),
+            NEW.customer_id,
+            NOW()
+        );
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to log new deals
+CREATE OR REPLACE FUNCTION "MARM".log_deal_activity()
+RETURNS TRIGGER AS $$
+DECLARE
+    customer_name_var TEXT;
+BEGIN
+    SELECT CONCAT_WS(' ', first_name, last_name)
+    INTO customer_name_var
+    FROM "MARM".customers
+    WHERE id = NEW.customer_id;
+
+    INSERT INTO "MARM".recent_activities (action, user_name, target, details, customer_id, created_at)
+    VALUES (
+        'created',
+        'Trigger',
+        'Deal: ' || NEW.title,
+        jsonb_build_object(
+            'deal_id', NEW.id,
+            'deal_value', NEW.value,
+            'customer_name', customer_name_var
+        ),
+        NEW.customer_id,
+        NOW()
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- --------------------------------------------------------------------
+--  Phase 6: Triggers
+--  Connect functions to table events.
+-- --------------------------------------------------------------------
+
+-- Triggers for 'updated_at'
+CREATE TRIGGER update_customers_updated_at
+  BEFORE UPDATE ON "MARM".customers
+  FOR EACH ROW
+  EXECUTE FUNCTION "MARM".update_updated_at_column();
+
+CREATE TRIGGER update_interactions_updated_at
+  BEFORE UPDATE ON "MARM".interactions
+  FOR EACH ROW
+  EXECUTE FUNCTION "MARM".update_updated_at_column();
+
+CREATE TRIGGER update_support_tickets_updated_at
+  BEFORE UPDATE ON "MARM".support_tickets
+  FOR EACH ROW
+  EXECUTE FUNCTION "MARM".update_updated_at_column();
+
+CREATE TRIGGER update_customer_segments_updated_at
+  BEFORE UPDATE ON "MARM".customer_segments
+  FOR EACH ROW
+  EXECUTE FUNCTION "MARM".update_updated_at_column();
+
+CREATE TRIGGER update_deals_updated_at
+  BEFORE UPDATE ON "MARM".deals
+  FOR EACH ROW
+  EXECUTE FUNCTION "MARM".update_updated_at_column();
+
+-- Triggers for 'recent_activities' logging
+CREATE TRIGGER on_new_customer_activity
+  AFTER INSERT ON "MARM".customers
+  FOR EACH ROW
+  EXECUTE FUNCTION "MARM".log_new_customer_activity();
+
+CREATE TRIGGER on_new_interaction_activity
+  AFTER INSERT ON "MARM".interactions
+  FOR EACH ROW
+  EXECUTE FUNCTION "MARM".log_new_interaction_activity();
+
+CREATE TRIGGER on_ticket_status_change_activity
+  AFTER UPDATE ON "MARM".support_tickets
+  FOR EACH ROW
+  EXECUTE FUNCTION "MARM".log_ticket_status_change_activity();
+  
+CREATE TRIGGER on_new_deal_trigger
+  AFTER INSERT ON "MARM".deals
+  FOR EACH ROW
+  EXECUTE FUNCTION "MARM".log_deal_activity();
 
 -- ====================================================================
 --  End of Script
