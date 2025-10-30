@@ -198,7 +198,7 @@ const Deals = () => {
                                             </option>
                                             {customers.map(customer => (
                                                 <option key={customer.id} value={customer.id} style={{ color: 'black' }}>
-                                                    {customer.first_name} {customer.last_name}
+                                                    {customer.firstName} {customer.lastName}
                                                 </option>
                                             ))}
                                         </select>
