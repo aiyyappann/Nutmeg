@@ -115,7 +115,6 @@ const ImportModal = ({ isOpen, onClose, onImportComplete, dataProvider }) => {
     reader.readAsText(file);
   };
   
-// ... (rest of the component) ...
 
   const handleClose = () => {
     setFile(null);
