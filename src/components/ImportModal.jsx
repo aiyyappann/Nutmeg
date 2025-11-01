@@ -37,6 +37,8 @@ const ImportModal = ({ isOpen, onClose, onImportComplete, dataProvider }) => {
     reader.readAsText(file);
   };
 
+  // ... (inside ImportModal.jsx) ...
+
   const handleImport = async () => {
     if (!file) return;
 
@@ -45,9 +47,10 @@ const ImportModal = ({ isOpen, onClose, onImportComplete, dataProvider }) => {
     reader.onload = async (e) => {
       try {
         const text = e.target.result;
+        // ... (all your file parsing and transforming code remains the same) ...
+        
         const lines = text.split('\n');
         const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
-        
         const customers = lines.slice(1).map(line => {
           const values = line.split(',').map(v => v.replace(/"/g, '').trim());
           return headers.reduce((obj, header, index) => {
@@ -56,31 +59,52 @@ const ImportModal = ({ isOpen, onClose, onImportComplete, dataProvider }) => {
           }, {});
         }).filter(row => Object.values(row).some(val => val));
 
-        // Transform data to match expected format
         const transformedCustomers = customers.map(customer => ({
-          firstName: customer.Name?.split(' ')[0] || customer['First Name'] || '',
-          lastName: customer.Name?.split(' ').slice(1).join(' ') || customer['Last Name'] || '',
-          email: customer.Email || customer.email || '',
-          company: customer.Company || customer.company || '',
-          industry: customer.Industry || customer.industry || '',
-          status: customer.Status || customer.status || 'Prospect',
-          value: parseFloat(customer.Value || customer.value || 0),
-          phone: customer.Phone || customer.phone || ''
+          firstName: customer.Name?.split(' ')[0] || customer['First Name'] || '',
+          lastName: customer.Name?.split(' ').slice(1).join(' ') || customer['Last Name'] || '',
+          email: customer.Email || customer.email || '',
+          company: customer.Company || customer.company || '',
+          industry: customer.Industry || customer.industry || '',
+          status: customer.Status || customer.status || 'Prospect',
+          value: parseFloat(customer.Value || customer.value || 0),
+          phone: customer.Phone || customer.phone || ''
         })).filter(customer => customer.email); // Only import customers with email
 
-        let successCount = 0;
-        for (const customer of transformedCustomers) {
-          try {
-            await dataProvider.createCustomer(customer);
-            successCount++;
-          } catch (error) {
-            console.warn('Failed to import customer:', customer.email, error);
-          }
+        // *** THIS IS THE CHANGED SECTION ***
+        
+        if (transformedCustomers.length === 0) {
+          addToast('No valid customers with emails found to import.', 'error');
+          setLoading(false);
+          return;
         }
 
-        addToast(`Successfully imported ${successCount} customers`, 'success');
-        onImportComplete();
+        // Send the entire array to the backend
+        // Make sure your dataProvider has this function (we created it in a previous step)
+        const result = await dataProvider.importCustomers(transformedCustomers);
+
+        const newCount = result.new_count || 0;
+        const skippedCount = result.skipped_count || 0;
+
+        // Logic for different toast messages
+        if (newCount > 0) {
+          // At least one customer was inserted
+          let message = `Successfully imported ${newCount} new customers.`;
+          if (skippedCount > 0) {
+            message += ` ${skippedCount} duplicates were skipped.`;
+          }
+          addToast(message, 'success'); // Green toast
+        } else if (skippedCount > 0) {
+          // No new customers, but duplicates were found
+          addToast(`${skippedCount} duplicate customers were found and not inserted.`, 'error'); // Red toast
+        } else {
+          // No new customers and no duplicates (e.g., empty file)
+          addToast('No customers were imported.', 'info');
+        }
+
+        onImportComplete(); // This refreshes the main customer list
         handleClose();
+        // *** END OF CHANGED SECTION ***
+
       } catch (error) {
         console.error('Error importing customers:', error);
         addToast('Failed to import customers', 'error');
@@ -90,6 +114,8 @@ const ImportModal = ({ isOpen, onClose, onImportComplete, dataProvider }) => {
     };
     reader.readAsText(file);
   };
+  
+// ... (rest of the component) ...
 
   const handleClose = () => {
     setFile(null);
@@ -190,3 +216,4 @@ const ImportModal = ({ isOpen, onClose, onImportComplete, dataProvider }) => {
 };
 
 export default ImportModal;
+

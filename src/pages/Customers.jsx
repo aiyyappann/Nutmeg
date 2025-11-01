@@ -79,30 +79,71 @@ const Customers = () => {
       }
     }
   };
+const formatCsvCell = (value) => {
+  let str = String(value === null || value === undefined ? '' : value);
+  str = str.replace(/"/g, '""'); // Escape any existing double quotes
+  return `"${str}"`; // Enclose every value in double quotes
+};
 
-  const exportCustomers = () => {
+// This is your function, now with error handling
+const exportCustomers = () => {
+  try {
+    // --- ADDED ERROR CHECK ---
+    if (!customers || customers.length === 0) {
+      addToast('No customer data to export.', 'info');
+      return;
+    }
+    // --- END ADDED CHECK ---
+
+    const headers = [
+      'id', 'firstName', 'lastName', 'email', 'phone', 'company', 
+      'industry', 'status', 'value', 'createdAt', 'updatedAt', 
+      'lastContact', 'tags', 'address_street', 'address_city', 
+      'address_state', 'address_zip'
+    ];
+
     const csvContent = [
-      ['Name', 'Email', 'Company', 'Status', 'Industry', 'Value', 'Created Date'].join(','),
+      headers.join(','), 
       ...customers.map(customer => [
-        `"${customer.firstName} ${customer.lastName}"`,
-        customer.email,
-        `"${customer.company || ''}"`,
-        customer.status,
-        customer.industry || '',
-        customer.value || 0,
-        new Date(customer.createdAt).toLocaleDateString()
+        formatCsvCell(customer.id),
+        formatCsvCell(customer.firstName),
+        formatCsvCell(customer.lastName),
+        formatCsvCell(customer.email),
+        formatCsvCell(customer.phone),
+        formatCsvCell(customer.company),
+        formatCsvCell(customer.industry),
+        formatCsvCell(customer.status),
+        formatCsvCell(customer.value),
+        formatCsvCell(customer.createdAt ? new Date(customer.createdAt).toISOString() : ''),
+        formatCsvCell(customer.updatedAt ? new Date(customer.updatedAt).toISOString() : ''),
+        formatCsvCell(customer.lastContact ? new Date(customer.lastContact).toISOString() : ''),
+        formatCsvCell(customer.tags ? customer.tags.join('; ') : ''),
+        formatCsvCell(customer.address?.street),
+        formatCsvCell(customer.address?.city),
+        formatCsvCell(customer.address?.state),
+        formatCsvCell(customer.address?.zip)
       ].join(','))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-t;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `customers-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
+    
+    // This is the success message
     addToast('Customer data exported successfully', 'success');
-  };
+
+  } catch (error) {
+    // --- ADDED ERROR HANDLING ---
+    console.error("Failed to export customers:", error);
+    // This is the error message toast
+    addToast('An error occurred during the export.', 'error');
+    // --- END ADDED HANDLING ---
+  }
+};
 
   return (
     <div>

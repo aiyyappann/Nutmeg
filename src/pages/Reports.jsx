@@ -4,7 +4,7 @@ import { useToast } from "../components/Toast";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, Title, Tooltip, Legend, PointElement, ArcElement, Filler } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 import { Users, IndianRupee, MessageCircle, Headphones, Download, FileText } from "lucide-react";
-
+import jsPDF from 'jspdf';
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend, Filler);
 
 const Reports = () => {
@@ -33,7 +33,7 @@ const Reports = () => {
 
   const exportData = (format) => {
     // Mock export functionality
-    const data = `Customer Report - ${new Date().toLocaleDateString()}\n\nTotal Customers: ${stats?.totalCustomers || 0}\nActive Customers: ${stats?.activeCustomers || 0}\nTotal Revenue: $${stats?.totalRevenue?.toLocaleString() || '0'}`;
+    const data = `Customer Report - ${new Date().toLocaleDateString()}\n\nTotal Customers: ${stats?.totalCustomers || 0}\nActive Customers: ${stats?.activeCustomers || 0}\nTotal Revenue: ${stats?.totalRevenue?.toLocaleString() || '0'}`;
     
     if (format === 'csv') {
       const blob = new Blob([data], { type: 'text/csv' });
@@ -43,8 +43,14 @@ const Reports = () => {
       a.download = `customer-report-${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
     } else if (format === 'pdf') {
-      // Mock PDF export
-      alert('PDF export functionality would be implemented here');
+      // --- PDF Export Logic ---
+      const doc = new jsPDF();
+      
+      // Add the text to the PDF. (10, 10) are the x, y coordinates.
+      doc.text(data, 10, 10);
+      
+      // Save the file
+      doc.save(`customer-report-${new Date().toISOString().split('T')[0]}.pdf`);
     }
   };
 

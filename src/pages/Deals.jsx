@@ -93,6 +93,7 @@ const Deals = () => {
         setNewDeal(prev => ({ ...prev, [name]: value }));
     };
 
+    
     const handleCreateDeal = async (e) => {
         e.preventDefault();
         if (!newDeal.title || !newDeal.value || !newDeal.customer_id) {
@@ -118,7 +119,14 @@ const Deals = () => {
             addToast('Failed to create deal', 'error');
         }
     };
-
+    const modalSelectStyle = `
+        select.form-select:invalid {
+            color: #6c757d; 
+        }
+        select.form-select option {
+            color: #000; 
+        }
+    `;
     if (loading) {
         return <div className="d-flex justify-content-center align-items-center" style={{ height: "400px" }}>...Loading</div>;
     }
@@ -195,10 +203,11 @@ const Deals = () => {
                                         >
                                             <option value="">
                                                 {customers.length > 0 ? "Select a customer" : "No customers available"}
+                                
                                             </option>
                                             {customers.map(customer => (
                                                 <option key={customer.id} value={customer.id} style={{ color: 'black' }}>
-                                                    {customer.first_name} {customer.last_name}
+                                                    {customer.firstName} {customer.lastName}
                                                 </option>
                                             ))}
                                         </select>
@@ -230,4 +239,27 @@ const Deals = () => {
 };
 
 export default Deals;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
