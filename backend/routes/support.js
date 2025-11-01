@@ -104,31 +104,37 @@ router.get('/tickets/:id', async (req, res) => {
 });
 
 // POST a new ticket
+// POST a new ticket
 router.post('/tickets', async (req, res) => {
     const { title, description, customerId, category, priority, assignedTo } = req.body;
     try {
-        // *** CHANGED: Added "MARM" schema ***
+        // Insert the new ticket
         const result = await pool.query(
-            'INSERT INTO "MARM".support_tickets (title, description, customer_id, category, priority, assigned_to) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            `INSERT INTO "MARM".support_tickets
+             (title, description, customer_id, category, priority, assigned_to)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING *`,
             [title, description, customerId, category, priority, assignedTo]
         );
-        // Note: The response here will NOT have customer name, as the original query doesn't join.
-        // This matches the original code's behavior.
-        res.status(201).json(result.rows[0]); // Original code did not transform, this is an assumption. Let's fix.
-        // res.status(201).json(transformTicketFromDb(result.rows[0])); // This would fail.
-        
-        // Let's do this properly and match the GET single ticket route
+
+        // Fetch the joined data (to include customer info)
         const finalTicketRes = await pool.query(
-            'SELECT t.*, c.first_name, c.last_name, c.company FROM "MARM".support_tickets t JOIN "MARM".customers c ON t.customer_id = c.id WHERE t.id = $1',
+            `SELECT t.*, c.first_name, c.last_name, c.company
+             FROM "MARM".support_tickets t
+             JOIN "MARM".customers c ON t.customer_id = c.id
+             WHERE t.id = $1`,
             [result.rows[0].id]
         );
-        res.status(201).json(transformTicketFromDb(finalTicketRes.rows[0]));
+
+        // Send a single response
+        return res.status(201).json(transformTicketFromDb(finalTicketRes.rows[0]));
 
     } catch (err) {
         console.error('Ticket creation error:', err);
-        res.status(500).json({ message: 'Server Error' });
+        return res.status(500).json({ message: 'Server Error' });
     }
 });
+
 
 // *** ENTIRE ROUTE MODIFIED TO REPLACE TRIGGER ***
 // PUT (update) a ticket's status or other details
