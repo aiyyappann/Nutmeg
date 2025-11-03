@@ -67,21 +67,24 @@ const handleImport = async () => {
 
       const transformed = customers
         .map((customer) => ({
-         firstName: customer.Name?.split(" ")[0] || customer["First Name"] || "",
-         lastName:
-         customer.Name?.split(" ").slice(1).join(" ") ||
-         customer["Last Name"] ||
-           "",
-         email: customer.Email || customer.email || "",
-         company: customer.Company || customer.company || "",
-         industry: customer.Industry || customer.industry || "",
-         status: customer.Status || customer.status || "Prospect",
-       value: parseFloat(customer.Value || customer.value || 0),
-         phone: customer.Phone || customer.phone || "",
-        }))
-        .filter((c) => c.email && c.email.trim()); 
+          firstName: customer.Name?.split(" ")[0] || customer["First Name"] || customer.firstName || "",
+   // Now checks for template 'Name' OR exported 'lastName'
+   lastName:
+   customer.Name?.split(" ").slice(1).join(" ") ||
+   customer["Last Name"] ||
+   customer.lastName ||
+   "",
+      // Updated all fields to check for both formats
+   email: customer.Email || customer.email || "",
+   company: customer.Company || customer.company || "",
+   industry: customer.Industry || customer.industry || "",
+   status: customer.Status || customer.status || "Prospect",
+   value: parseFloat(customer.Value || customer.value || 0),
+   phone: customer.Phone || customer.phone || "",
+  }))
+  .filter((c) => c.email && c.email.trim()); 
 
-      if (transformed.length === 0) {
+  if (transformed.length === 0) {
       addToast("No valid customers found in CSV", "error"); // RED toast
       setLoading(false);
       return;

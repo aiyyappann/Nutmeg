@@ -39,8 +39,8 @@ router.post('/import', async (req, res) => {
 
     // Prepare values for insertion
     const values = customers.map(customer => [
-      customer.firstName?.trim() || null,
-      customer.lastName?.trim() || null,
+      customer.firstName?.trim() || '', 
+      customer.lastName?.trim() || '',
       customer.email?.trim().toLowerCase() || null,
       customer.phone?.trim() || null,
       customer.company?.trim() || null,
