@@ -1,4 +1,3 @@
-// export default Segments;
 import { useState, useEffect } from "react";
 import { useToast } from "../components/Toast";
 import { useAppContext } from "../App"; // Import useAppContext
@@ -9,7 +8,7 @@ const Segments = () => {
   const { dataProvider } = useAppContext(); // Get the dataProvider from context
   const [segments, setSegments] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  const [exportingId, setExportingId] = useState(null);
   const [showBuilder, setShowBuilder] = useState(false);
   const [newSegment, setNewSegment] = useState({
     name: "",
@@ -101,6 +100,25 @@ const Segments = () => {
         console.error('Error deleting segment:', error);
         addToast('Failed to delete segment', 'error');
       }
+    }
+  };
+
+  const handleExportSegment = async (segmentId, segmentName) => {
+    setExportingId(segmentId); // Show spinner
+    addToast(`Exporting '${segmentName}'...`, 'info');
+    try {
+      // We'll create this 'exportSegment' function in the dataProvider next
+      const result = await dataProvider.exportSegment(segmentId, segmentName);
+      if (result.success) {
+        addToast('Segment exported successfully!', 'success');
+      } else {
+        throw new Error(result.error || 'Export failed');
+      }
+    } catch (error) {
+      console.error('Error exporting segment:', error);
+      addToast(`Failed to export segment: ${error.message}`, 'error');
+    } finally {
+      setExportingId(null); // Hide spinner
     }
   };
 
@@ -299,9 +317,19 @@ const Segments = () => {
                   </div>
                 </div>
                 <div className="card-footer bg-transparent">
-                  <button className="btn btn-outline-primary btn-sm w-100">
-                    <Download size={14} className="me-1" />
-                    Export Customers
+                  <button 
+                    className="btn btn-outline-primary btn-sm w-100 d-flex justify-content-center align-items-center"
+                    onClick={() => handleExportSegment(segment.id, segment.name)}
+                    disabled={exportingId === segment.id}
+                  >
+                    {exportingId === segment.id ? (
+                      <div className="spinner-border spinner-border-sm me-1" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                      </div>
+                    ) : (
+                      <Download size={14} className="me-1" />
+                    )}
+                    {exportingId === segment.id ? 'Exporting...' : 'Export Customers'}
                   </button>
                 </div>
               </div>

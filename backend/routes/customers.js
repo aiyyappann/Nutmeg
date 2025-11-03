@@ -24,6 +24,61 @@ const transformCustomerFromDb = (dbCustomer) => {
     };
 };
 
+
+
+// POST /api/customers/import
+router.post('/import', async (req, res) => {
+  try {
+    const { customers } = req.body;
+
+    if (!customers || !Array.isArray(customers) || customers.length === 0) {
+      return res.status(400).json({ message: 'No customer data provided.' });
+    }
+
+    const totalToImport = customers.length;
+
+    // Prepare values for insertion
+    const values = customers.map(customer => [
+      customer.firstName?.trim() || null,
+      customer.lastName?.trim() || null,
+      customer.email?.trim().toLowerCase() || null,
+      customer.phone?.trim() || null,
+      customer.company?.trim() || null,
+      customer.industry?.trim() || null,
+      customer.status?.trim() || 'Prospect',
+      customer.value || 0,
+      new Date() // last_contact
+    ]);
+
+    const query = format(
+      `INSERT INTO "MARM".customers 
+        (first_name, last_name, email, phone, company, industry, status, value, last_contact)
+       VALUES %L
+       ON CONFLICT (email) DO NOTHING
+       RETURNING id;`,
+      values
+    );
+
+    const result = await pool.query(query);
+    const insertedCount = result.rowCount;
+    const skippedCount = totalToImport - insertedCount;
+
+    return res.status(200).json({
+      message: 'Import completed successfully',
+      inserted: insertedCount,
+      skipped: skippedCount,
+      total: totalToImport
+    });
+  } catch (err) {
+    console.error('Bulk customer import error:', err);
+    return res.status(500).json({
+      message: 'Server Error during import',
+      error: err.message
+    });
+  }
+});
+
+
 // GET all customers with pagination, search, and filter
 router.get('/', async (req, res) => {
     const { page = 1, limit = 10, search = '', status, industry } = req.query;
@@ -75,8 +130,14 @@ router.get('/', async (req, res) => {
 });
 
 // GET a single customer by ID
-router.get('/:id', async (req, res) => {
-    try {
+router.get('/:id', async (req, res, next) => {
+  const { id } = req.params;
+  const uuidRegex = /^[0-9a-fA-F-]{36}$/;
+
+  // if not a UUID → skip to next route (for example /actions/import)
+  if (!uuidRegex.test(id)) return next();
+
+  try {
         const { id } = req.params;
         // *** CHANGED: Added "MARM" schema ***
         const result = await pool.query('SELECT * FROM "MARM".customers WHERE id = $1', [id]);
@@ -90,98 +151,7 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// POST (create) a new customer
-router.post('/', async (req, res) => {
-    const { firstName, lastName, email, phone, company, industry, status, value, address, tags } = req.body;
-    try {
-        // *** CHANGED: Added "MARM" schema ***
-        const result = await pool.query(
-            'INSERT INTO "MARM".customers (first_name, last_name, email, phone, company, industry, status, value, address, tags, last_contact) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) RETURNING *',
-            [firstName, lastName, email, phone, company, industry, status || 'Prospect', value || 0, address, tags || []]
-        );
-
-        const newCustomer = result.rows[0];
-
-        // *** ADDED: Replaces log_new_customer_activity trigger ***
-        try {
-            const targetName = 'Customer: ' + newCustomer.first_name + ' ' + newCustomer.last_name;
-            const details = {
-                customer_id: newCustomer.id,
-                email: newCustomer.email,
-                company: newCustomer.company
-            };
-
-            await pool.query(
-                'INSERT INTO "MARM".recent_activities (action, user_name, target, details, customer_id, created_at) VALUES ($1, $2, $3, $4, $5, NOW())',
-                ['created', 'NEWCUSTOMER', targetName, details, newCustomer.id]
-            );
-        } catch (logErr) {
-            // If logging fails, just log the error to the console
-            // but don't fail the main customer creation request.
-            console.error('Failed to log new customer activity:', logErr);
-        }
-        // *** END ADDED SECTION ***
-
-        res.status(201).json(transformCustomerFromDb(newCustomer));
-    } catch (err) {
-        console.error('Customer creation error:', err);
-        res.status(500).json({ message: 'Server Error' });
-    }
-});
-
-
-
-
-
-router.post('/import', async (req, res) => {
-  const { customers } = req.body; // Expect an array of customer objects
-
-  if (!customers || !Array.isArray(customers) || customers.length === 0) {
-    return res.status(400).json({ message: 'No customer data provided.' });
-  }
-
-  const totalToImport = customers.length;
-
-  // Map the array of objects into a 2D array of values
-  const values = customers.map(customer => [
-    customer.firstName,
-    customer.lastName,
-    customer.email,
-    customer.phone,
-    customer.company,
-    customer.industry,
-    customer.status,
-    customer.value
-  ]);
-
-  // Use ON CONFLICT (email) DO NOTHING
-  // This will only insert new rows and skip duplicates
-  const query = format(
-    `INSERT INTO "MARM".customers (first_name, last_name, email, phone, company, industry, status, value, last_contact) 
-     VALUES %L 
-     ON CONFLICT (email) DO NOTHING
-     RETURNING id`, // RETURNING id gives us the count of *actually inserted* rows
-    values
-  );
-
-  try {
-    const result = await pool.query(query);
-    
-    const new_count = result.rowCount; // Count of newly inserted rows
-    const skipped_count = totalToImport - new_count; // Count of duplicates
-
-    // Send both counts back to the frontend
-    res.status(200).json({ 
-      new_count: new_count,
-      skipped_count: skipped_count 
-    });
-
-  } catch (err) {
-    console.error('Bulk customer import error:', err);
-    res.status(500).json({ message: 'Server Error during import' });
-  }
-});
-
+//POST (create) a new customer
 router.post('/', async (req, res) => {
     const { firstName, lastName, email, phone, company, industry, status, value, address, tags } = req.body;
     try {

@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 // Import routes
+//import importCustomersRoutes from './routes/importCustomers.js';
 import customerRoutes from './routes/customers.js';
 import segmentRoutes from './routes/segments.js';
 import interactionRoutes from './routes/interactions.js';
@@ -12,6 +13,7 @@ import supportRoutes from './routes/support.js';
 import statsRoutes from './routes/stats.js';
 import activityRoutes from './routes/activities.js';
 import dealRoutes from './routes/deals.js';
+
 
 
 // Setup for __dirname in ES modules
@@ -29,6 +31,7 @@ app.use(cors());
 app.use(express.json()); // This is crucial for parsing JSON request bodies
 
 // Use the routes
+//app.use('/api/customers/actions', importCustomersRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/segments', segmentRoutes);
 app.use('/api/interactions', interactionRoutes);
