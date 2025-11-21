@@ -94,7 +94,7 @@ Your backend needs a `.env` file with the following keys.
 DB_USER=postgres
 DB_HOST=localhost
 DB_DATABASE=ncrm_db
-DB_PASSWORD=Yasir@123
+DB_PASSWORD=passwro
 DB_PORT=5432
 
 # API Server Port
